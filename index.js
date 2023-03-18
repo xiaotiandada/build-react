@@ -1,3 +1,4 @@
+// 我们对 props 使用扩展运算符，对 children 使用剩余参数语法，这样 children prop 将始终是一个数组。
 function createElement(type, props, ...children) {
   return {
     type,
@@ -10,6 +11,10 @@ function createElement(type, props, ...children) {
   }
 }
 
+// 使用 textNode 而不是设置 innerText 将允许我们稍后以相同的方式处理所有元素
+// 还要注意我们如何设置 nodeValue 就像我们对 h1 标题所做的那样，它几乎就像字符串有 props: {nodeValue: "hello"} 一样。
+// children 数组还可以包含原始值，如字符串或数字。所以我们将所有不是对象的东西都包装在它自己的元素中，并为它们创建一个特殊类型： TEXT_ELEMENT 。
+// 当没有 children 时，React 不会包装原始值或创建空数组，但我们这样做是因为它会简化我们的代码，并且对于我们的库，我们更喜欢简单的代码而不是高性能的代码。
 function createTextElement(text) {
   return {
     type: 'TEXT_ELEMENT',
@@ -21,11 +26,13 @@ function createTextElement(text) {
 }
 
 function createDom(filber) {
+  // 处理文本元素，如果元素类型是 TEXT_ELEMENT ，我们创建一个文本节点而不是常规节点。
   const dom =
   filber.type === 'TEXT_ELEMENT'
       ? document.createTextNode('')
       : document.createElement(filber.type)
 
+  // 将元素 props 分配给节点。
   const isProperty = (key) => key !== 'children'
   Object.keys(filber.props)
     .filter(isProperty)
@@ -129,6 +136,7 @@ function commitWork(fiber) {
   commitWork(fiber.sibling)
 }
 
+// Render 渲染
 function render(element, container) {
   wipRoot = {
     dom: container,
@@ -146,12 +154,17 @@ let currentRoot = null
 let wipRoot = null
 let deletions = null
 
+// 所以我们要把工作分解成小的单元，当我们完成每个单元后，如果还有其他需要做的事情，我们会让浏览器中断渲染。
 function workLoop(deadline) {
+  // console.log('workLoop', deadline.timeRemaining());
   let shouldYield = false
 
+  // 截至 2019 年 11 月，并发模式在 React 中还不稳定。循环的稳定版本看起来更像这样：
   while (nextUnitOfWork && !shouldYield) {
+    // 设置第一个工作单元
     nextUnitOfWork = performUnitOfWork(nextUnitOfWork)
 
+    // 检查在浏览器需要再次控制之前我们有多少时间。
     shouldYield = deadline.timeRemaining() < 1
   }
 
@@ -162,8 +175,13 @@ function workLoop(deadline) {
   requestIdleCallback(workLoop)
 }
 
+// 我们使用 requestIdleCallback 进行循环
+// React doesn’t use requestIdleCallback anymore. 现在它使用调度程序包。但对于这个用例，它在概念上是相同的。
+// https://github.com/facebook/react/tree/main/packages/scheduler
 requestIdleCallback(workLoop)
 
+
+// 执行工作而且返回下一个工作单元。
 function performUnitOfWork(fiber) {
   if (!fiber.dom) {
     fiber.dom = createDom(fiber)
@@ -245,6 +263,8 @@ const Didact = {
   render,
 }
 
+/** @jsx Didact.createElement */
+// 创建一个对象，type props
 const element = Didact.createElement(
   'div',
   {
