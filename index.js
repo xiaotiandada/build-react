@@ -137,6 +137,7 @@ function commitWork(fiber) {
 }
 
 // Render 渲染
+// 将 nextUnitOfWork 设置为 root fiber
 function render(element, container) {
   wipRoot = {
     dom: container,
@@ -178,22 +179,27 @@ function workLoop(deadline) {
 // 我们使用 requestIdleCallback 进行循环
 // React doesn’t use requestIdleCallback anymore. 现在它使用调度程序包。但对于这个用例，它在概念上是相同的。
 // https://github.com/facebook/react/tree/main/packages/scheduler
+// 当浏览器准备就绪时，它将调用我们的 workLoop ，我们将开始处理根目录。
 requestIdleCallback(workLoop)
 
 
 // 执行工作而且返回下一个工作单元。
 function performUnitOfWork(fiber) {
+  // 建一个新节点并将其附加到 DOM。
   if (!fiber.dom) {
     fiber.dom = createDom(fiber)
   }
+  // 我们在 fiber.dom 属性中跟踪 DOM 节点。
 
   const elements = fiber.props.children
   reconcileChildren(fiber, elements)
 
+  // 搜索下一个工作单元。我们先尝试孩子
   if (fiber.child) {
     return fiber.child
   }
 
+  // 然后是兄弟姐妹，然后是叔叔，依此类推。
   let nextFiber = fiber
   while (nextFiber) {
     if (nextFiber.sibling) {
@@ -208,6 +214,7 @@ function reconcileChildren(wipFiber, elements) {
   let oldFiber = wipFiber.alternate && wipFiber.alternate.child
   let prevSibling = null
 
+  // 为每个孩子创建一个 new fiber。
   while (index < elements.length || oldFiber != null) {
     const element = elements[index]
     let newFiber = null
@@ -246,7 +253,7 @@ function reconcileChildren(wipFiber, elements) {
     }
 
     // TODO compare oldFiber to element
-
+    // 将它添加到 fiber 树中，将其设置为子节点或兄弟节点，具体取决于它是否是第一个子节点。
     if (index === 0) {
       wipFiber.child = newFiber
     } else if (element) {
