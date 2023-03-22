@@ -1,3 +1,5 @@
+import { Fiber } from './index.d'
+
 // 我们对 props 使用扩展运算符，对 children 使用剩余参数语法，这样 children prop 将始终是一个数组。
 function createElement(type, props, ...children) {
   return {
@@ -28,73 +30,59 @@ function createTextElement(text) {
 function createDom(fiber) {
   // 处理文本元素，如果元素类型是 TEXT_ELEMENT ，我们创建一个文本节点而不是常规节点。
   const dom =
-  fiber.type === 'TEXT_ELEMENT'
+    fiber.type === 'TEXT_ELEMENT'
       ? document.createTextNode('')
       : document.createElement(fiber.type)
 
   // 将元素 props 分配给节点。
-  updateDom(dom, {}, fiber.props);
+  updateDom(dom, {}, fiber.props)
 
   return dom
 }
 
 // 事件侦听器，以“on”前缀开头
-const isEvent = key => key.startsWith("on")
-const isProperty = key => key !== "children" && !isEvent(key)
-const isNew = (prev, next) => key => prev[key] !== next[key]
-const isGone = (prev, next) => key => !(key in next)
+const isEvent = (key) => key.startsWith('on')
+const isProperty = (key) => key !== 'children' && !isEvent(key)
+const isNew = (prev, next) => (key) => prev[key] !== next[key]
+const isGone = (prev, next) => (key) => !(key in next)
 
 // 我们将旧 fiber 的 props 与新 fiber 的 props 进行比较，移除消失的 props，并设置新的或更改的 props。
 function updateDom(dom, prevProps, nextProps) {
   //Remove old or changed event listeners
   Object.keys(prevProps)
-  .filter(isEvent)
-  .filter(
-    key =>
-      !(key in nextProps) ||
-      isNew(prevProps, nextProps)(key)
-  )
-  .forEach(name => {
-    const eventType = name
-      .toLowerCase()
-      .substring(2)
+    .filter(isEvent)
+    .filter((key) => !(key in nextProps) || isNew(prevProps, nextProps)(key))
+    .forEach((name) => {
+      const eventType = name.toLowerCase().substring(2)
 
-    dom.removeEventListener(
-      eventType,
-      prevProps[name]
-    )
-  })
+      dom.removeEventListener(eventType, prevProps[name])
+    })
 
   // Remove old properties
   Object.keys(prevProps)
     .filter(isProperty)
     .filter(isGone(prevProps, nextProps))
-    .forEach(name => {
-      dom[name] = ""
+    .forEach((name) => {
+      dom[name] = ''
     })
 
   // Set new or changed properties
   Object.keys(nextProps)
     .filter(isProperty)
     .filter(isNew(prevProps, nextProps))
-    .forEach(name => {
+    .forEach((name) => {
       dom[name] = nextProps[name]
     })
 
   // Add event listeners
   Object.keys(nextProps)
-  .filter(isEvent)
-  // .filter(isNew(prevProps, nextProps))
-  .forEach(name => {
-    const eventType = name
-      .toLowerCase()
-      .substring(2)
-    
-    dom.addEventListener(
-      eventType,
-      nextProps[name]
-    )
-  })
+    .filter(isEvent)
+    // .filter(isNew(prevProps, nextProps))
+    .forEach((name) => {
+      const eventType = name.toLowerCase().substring(2)
+
+      dom.addEventListener(eventType, nextProps[name])
+    })
 }
 
 function commitRoot() {
@@ -109,7 +97,7 @@ function commitRoot() {
 // 找 child 然后找 sibling，最后找到 parent
 // 递归地将所有节点附加到 dom。
 function commitWork(fiber) {
-  console.log('commitWork', fiber);
+  console.log('commitWork', fiber)
   if (!fiber) {
     return
   }
@@ -121,22 +109,12 @@ function commitWork(fiber) {
   }
   const domParent = domParentFiber.dom
   // 如果 fiber 有一个 PLACEMENT effect 标签，我们和以前一样，将 DOM 节点附加到父 fiber 的节点。
-  if (
-    fiber.effectTag === "PLACEMENT" &&
-    fiber.dom != null
-  ) {
+  if (fiber.effectTag === 'PLACEMENT' && fiber.dom != null) {
     domParent.appendChild(fiber.dom)
-  } else if (
-    fiber.effectTag === "UPDATE" &&
-    fiber.dom != null
-  ) {
+  } else if (fiber.effectTag === 'UPDATE' && fiber.dom != null) {
     // 如果它是一个 UPDATE ，我们需要用改变的属性更新现有的 DOM 节点。
-    updateDom(
-      fiber.dom,
-      fiber.alternate.props,
-      fiber.props
-    )
-  } else if (fiber.effectTag === "DELETION") {
+    updateDom(fiber.dom, fiber.alternate.props, fiber.props)
+  } else if (fiber.effectTag === 'DELETION') {
     commitDeletion(fiber, domParent)
   }
 
@@ -156,31 +134,31 @@ function commitDeletion(fiber, domParent) {
 
 // Render 渲染
 // 将 nextUnitOfWork 设置为 root fiber
-function render(element, container) {
+function render(element: any, container: HTMLElement) {
   wipRoot = {
     dom: container,
     props: {
-      children: [element]
+      children: [element],
     },
     // 将 alternate 属性添加到每个 fiber 。此属性是指向 old fiber 的链接，old fiber 是我们在前一个提交阶段提交给 DOM 的 fiber。
-    alternate: currentRoot
+    alternate: currentRoot,
   }
   deletions = []
   nextUnitOfWork = wipRoot
 }
 
 // 下一个工作单元
-let nextUnitOfWork = null
+let nextUnitOfWork: Fiber | null = null
 // 当前 Root
-let currentRoot = null
+let currentRoot: Fiber | null = null
 // 将跟踪 fiber tree。我们称它为正在进行的工作 root 或 wipRoot 。
-let wipRoot = null
+let wipRoot: Fiber | null = null
 // 但是当我们将纤程树提交给 DOM 时，我们是从正在进行的工作根目录中执行的，它没有 old fiber。
 // 所以我们需要一个数组来跟踪我们要删除的节点。
-let deletions = null
+let deletions: Fiber[] | null = null
 
 // 所以我们要把工作分解成小的单元，当我们完成每个单元后，如果还有其他需要做的事情，我们会让浏览器中断渲染。
-function workLoop(deadline) {
+function workLoop(deadline: any) {
   // console.log('workLoop', deadline.timeRemaining());
   let shouldYield = false
 
@@ -206,7 +184,6 @@ function workLoop(deadline) {
 // https://github.com/facebook/react/tree/main/packages/scheduler
 // 当浏览器准备就绪时，它将调用我们的 workLoop ，我们将开始处理根目录。
 requestIdleCallback(workLoop)
-
 
 // 执行工作而且返回下一个工作单元。
 function performUnitOfWork(fiber) {
@@ -252,33 +229,36 @@ function updateFunctionComponent(fiber) {
 
 function useState(initial) {
   // 当函数组件调用 useState 时，我们检查是否有 old hook。我们使用 hook index 检查 fiber 的 alternate 。
-  const oldHook = wipFiber.alternate && wipFiber.alternate.hooks && wipFiber.alternate.hooks[hookIndex]
+  const oldHook =
+    wipFiber.alternate &&
+    wipFiber.alternate.hooks &&
+    wipFiber.alternate.hooks[hookIndex]
   // 如果我们有一个 old hook，我们将状态从 old hook 复制到 new hook，如果我们没有，我们初始化状态。
   const hook = {
     state: oldHook ? oldHook.state : initial,
-    queue: []
+    queue: [],
   }
 
   // 我们在下次渲染组件时这样做，我们从 old hook 队列中获取所有动作
   const actions = oldHook ? oldHook.queue : []
   // 然后将它们一个一个地应用到 new hook 状态，所以当我们返回状态时它被更新了。
-  actions.forEach(action => {
+  actions.forEach((action) => {
     hook.state = action(hook.state)
   })
 
-  const setState = action => {
+  const setState = (action) => {
     // 我们将该操作推送到我们添加到 hook 的队列中。
     hook.queue.push(action)
     // 然后我们做一些类似于我们在 render 函数中所做的事情，设置一个新的正在进行的工作根作为下一个工作单元，这样工作循环就可以开始一个新的渲染阶段。
     wipRoot = {
       dom: currentRoot.dom,
       props: currentRoot.props,
-      alternate: currentRoot
+      alternate: currentRoot,
     }
     nextUnitOfWork = wipRoot
     deletions = []
   }
-  
+
   // 然后我们将 new hook 添加到 fiber 中，将 hook index 加一，
   wipFiber.hooks.push(hook)
   hookIndex++
@@ -322,7 +302,7 @@ function reconcileChildren(wipFiber, elements) {
         dom: oldFiber.dom,
         parent: wipFiber,
         alternate: oldFiber,
-        effectTag: "UPDATE"
+        effectTag: 'UPDATE',
       }
     }
     // 如果类型不同并且有一个新元素，则意味着我们需要创建一个新的 DOM 节点
@@ -334,14 +314,14 @@ function reconcileChildren(wipFiber, elements) {
         dom: null,
         parent: wipFiber,
         alternate: null,
-        effectTag: "PLACEMENT",
+        effectTag: 'PLACEMENT',
       }
     }
 
     // 如果类型不同并且有旧光纤，我们需要删除旧节点
     if (oldFiber && !sameType) {
       // 对于我们需要删除节点的情况，我们没有新的 fiber，所以我们将 effect 标签添加到旧的 fiber。
-      oldFiber.effectTag = "DELETION"
+      oldFiber.effectTag = 'DELETION'
       deletions.push(oldFiber)
     }
 
@@ -365,31 +345,40 @@ function reconcileChildren(wipFiber, elements) {
 const Didact = {
   createElement,
   render,
-  useState
+  useState,
 }
 
 /** @jsx Didact.createElement */
 function Counter() {
-  const [state, setState] = Didact.useState(1);
-  return Didact.createElement("div", null, Didact.createElement("h1", {
-    onClick: () => setState(c => c + 1)
-  }, "Count: ", state), Didact.createElement("button", {
-    onClick: () => console.log('click event')
-  }, "event"));
+  const [state, setState] = Didact.useState(1)
+  return Didact.createElement(
+    'div',
+    null,
+    Didact.createElement(
+      'h1',
+      {
+        onClick: () => setState((c) => c + 1),
+      },
+      'Count: ',
+      state
+    ),
+    Didact.createElement(
+      'button',
+      {
+        onClick: () => console.log('click event'),
+      },
+      'event'
+    )
+  )
 }
-const elementState = Didact.createElement(Counter, null);
+const elementState = Didact.createElement(Counter, null)
 
 /** @jsx Didact.createElement */
 function App(props) {
-  return Didact.createElement(
-    "h1",
-    null,
-    "Hi ",
-    props.name
-  )
+  return Didact.createElement('h1', null, 'Hi ', props.name)
 }
 const elementApp = Didact.createElement(App, {
-  name: "foo",
+  name: 'foo',
 })
 
 /** @jsx Didact.createElement */
