@@ -118,7 +118,12 @@ function commitWork(fiber) {
     return
   }
 
-  const domParent = fiber.parent.dom
+  // 要找到 DOM 节点的父节点，我们需要沿着fiber tree 向上移动，直到找到带有 DOM 节点的 fiber。
+  let domParentFiber = fiber.parent
+  while (!domParentFiber.dom) {
+    domParentFiber = domParentFiber.parent
+  }
+  const domParent = domParentFiber.dom
   // 如果 fiber 有一个 PLACEMENT effect 标签，我们和以前一样，将 DOM 节点附加到父 fiber 的节点。
   if (
     fiber.effectTag === "PLACEMENT" &&
@@ -136,12 +141,21 @@ function commitWork(fiber) {
       fiber.props
     )
   } else if (fiber.effectTag === "DELETION") {
-    // 如果是 DELETION ，我们做相反的事情，删除孩子。
-    domParent.removeChild(fiber.dom)
+    commitDeletion(fiber, domParent)
   }
 
   commitWork(fiber.child)
   commitWork(fiber.sibling)
+}
+
+function commitDeletion(fiber, domParent) {
+  if (fiber.dom) {
+    // 如果是 DELETION ，我们做相反的事情，删除孩子。
+    domParent.removeChild(fiber.dom)
+  } else {
+    // 在删除节点时，我们还需要继续前进，直到找到具有 DOM 节点的子节点。
+    commitDeletion(fiber.child, domParent)
+  }
 }
 
 // Render 渲染
@@ -200,14 +214,13 @@ requestIdleCallback(workLoop)
 
 // 执行工作而且返回下一个工作单元。
 function performUnitOfWork(fiber) {
-  // 建一个新节点并将其附加到 DOM。
-  if (!fiber.dom) {
-    fiber.dom = createDom(fiber)
+  // 我们检查 fiber 类型是否是一个函数，并根据它转到不同的更新函数。
+  const isFunctionComponent = fiber.type instanceof Function
+  if (isFunctionComponent) {
+    updateFunctionComponent(fiber)
+  } else {
+    updateHostComponent(fiber)
   }
-  // 我们在 fiber.dom 属性中跟踪 DOM 节点。
-
-  const elements = fiber.props.children
-  reconcileChildren(fiber, elements)
 
   // 搜索下一个工作单元。我们先尝试孩子
   if (fiber.child) {
@@ -224,6 +237,22 @@ function performUnitOfWork(fiber) {
   }
 }
 
+function updateFunctionComponent(fiber) {
+  // get the children.
+  // fiber.type 是函数，当我们运行它时，它返回 element
+  const children = [fiber.type(fiber.props)]
+  // 以同样的方式调用 reconcileChildren
+  reconcileChildren(fiber, children)
+}
+
+function updateHostComponent(fiber) {
+  // 建一个新节点并将其附加到 DOM。
+  if (!fiber.dom) {
+    fiber.dom = createDom(fiber)
+  }
+  reconcileChildren(fiber, fiber.props.children)
+}
+
 // 创建 new fiber
 function reconcileChildren(wipFiber, elements) {
   let index = 0
@@ -235,6 +264,7 @@ function reconcileChildren(wipFiber, elements) {
   // 如果我们忽略同时遍历一个数组和一个链表所需的所有样板，那么我们只剩下 while 中最重要的内容： oldFiber 和 element 。
   // element 是我们要渲染到 DOM 的东西， oldFiber 是我们上次渲染的东西。
   // 为每个孩子创建一个 new fiber。
+  // 我们在 fiber.dom 属性中跟踪 DOM 节点。
   while (index < elements.length || oldFiber != null) {
     const element = elements[index]
     let newFiber = null
@@ -297,6 +327,19 @@ const Didact = {
 }
 
 /** @jsx Didact.createElement */
+function App(props) {
+  return Didact.createElement(
+    "h1",
+    null,
+    "Hi ",
+    props.name
+  )
+}
+const elementApp = Didact.createElement(App, {
+  name: "foo",
+})
+
+/** @jsx Didact.createElement */
 // 创建一个对象，type props
 const element = Didact.createElement(
   'div',
@@ -311,7 +354,8 @@ const element = Didact.createElement(
       style: 'text-align:right',
     },
     'from Didact'
-  )
+  ),
+  elementApp
 )
 
 const container = document.getElementById('root')
