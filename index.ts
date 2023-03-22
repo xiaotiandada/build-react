@@ -1,7 +1,11 @@
-import { Fiber } from './index.d'
+import { Fiber, FunctionComponent, Props } from './index.d'
 
 // 我们对 props 使用扩展运算符，对 children 使用剩余参数语法，这样 children prop 将始终是一个数组。
-function createElement(type, props, ...children) {
+function createElement(
+  type: string | FunctionComponent,
+  props: Props,
+  ...children: any[]
+) {
   return {
     type,
     props: {
@@ -17,7 +21,7 @@ function createElement(type, props, ...children) {
 // 还要注意我们如何设置 nodeValue 就像我们对 h1 标题所做的那样，它几乎就像字符串有 props: {nodeValue: "hello"} 一样。
 // children 数组还可以包含原始值，如字符串或数字。所以我们将所有不是对象的东西都包装在它自己的元素中，并为它们创建一个特殊类型： TEXT_ELEMENT 。
 // 当没有 children 时，React 不会包装原始值或创建空数组，但我们这样做是因为它会简化我们的代码，并且对于我们的库，我们更喜欢简单的代码而不是高性能的代码。
-function createTextElement(text) {
+function createTextElement(text: string) {
   return {
     type: 'TEXT_ELEMENT',
     props: {
@@ -27,12 +31,12 @@ function createTextElement(text) {
   }
 }
 
-function createDom(fiber) {
+function createDom(fiber: Fiber) {
   // 处理文本元素，如果元素类型是 TEXT_ELEMENT ，我们创建一个文本节点而不是常规节点。
   const dom =
     fiber.type === 'TEXT_ELEMENT'
       ? document.createTextNode('')
-      : document.createElement(fiber.type)
+      : document.createElement(fiber.type as string)
 
   // 将元素 props 分配给节点。
   updateDom(dom, {}, fiber.props)
@@ -41,13 +45,14 @@ function createDom(fiber) {
 }
 
 // 事件侦听器，以“on”前缀开头
-const isEvent = (key) => key.startsWith('on')
-const isProperty = (key) => key !== 'children' && !isEvent(key)
-const isNew = (prev, next) => (key) => prev[key] !== next[key]
-const isGone = (prev, next) => (key) => !(key in next)
+const isEvent = (key: string) => key.startsWith('on')
+const isProperty = (key: string) => key !== 'children' && !isEvent(key)
+const isNew = (prev: Props, next: Props) => (key: string) =>
+  prev[key] !== next[key]
+const isGone = (prev: Props, next: Props) => (key: string) => !(key in next)
 
 // 我们将旧 fiber 的 props 与新 fiber 的 props 进行比较，移除消失的 props，并设置新的或更改的 props。
-function updateDom(dom, prevProps, nextProps) {
+function updateDom(dom: HTMLElement, prevProps: Props, nextProps: Props) {
   //Remove old or changed event listeners
   Object.keys(prevProps)
     .filter(isEvent)
@@ -96,7 +101,7 @@ function commitRoot() {
 
 // 找 child 然后找 sibling，最后找到 parent
 // 递归地将所有节点附加到 dom。
-function commitWork(fiber) {
+function commitWork(fiber: Fiber) {
   console.log('commitWork', fiber)
   if (!fiber) {
     return
@@ -122,7 +127,7 @@ function commitWork(fiber) {
   commitWork(fiber.sibling)
 }
 
-function commitDeletion(fiber, domParent) {
+function commitDeletion(fiber: Fiber, domParent: HTMLElement) {
   if (fiber.dom) {
     // 如果是 DELETION ，我们做相反的事情，删除孩子。
     domParent.removeChild(fiber.dom)
@@ -186,7 +191,7 @@ function workLoop(deadline: any) {
 requestIdleCallback(workLoop)
 
 // 执行工作而且返回下一个工作单元。
-function performUnitOfWork(fiber) {
+function performUnitOfWork(fiber: Fiber): Fiber | null {
   // 我们检查 fiber 类型是否是一个函数，并根据它转到不同的更新函数。
   const isFunctionComponent = fiber.type instanceof Function
   if (isFunctionComponent) {
@@ -208,12 +213,14 @@ function performUnitOfWork(fiber) {
     }
     nextFiber = nextFiber.parent
   }
+
+  return null
 }
 
-let wipFiber = null
-let hookIndex = null
+let wipFiber: Fiber | null = null
+let hookIndex: number | null = null
 
-function updateFunctionComponent(fiber) {
+function updateFunctionComponent(fiber: Fiber) {
   // 设置正在进行的工作 fiber。
   wipFiber = fiber
   // 我们会跟踪当前的 hook index
@@ -227,12 +234,10 @@ function updateFunctionComponent(fiber) {
   reconcileChildren(fiber, children)
 }
 
-function useState(initial) {
+function useState(initial: any): [any, (action: any) => void] {
   // 当函数组件调用 useState 时，我们检查是否有 old hook。我们使用 hook index 检查 fiber 的 alternate 。
-  const oldHook =
-    wipFiber.alternate &&
-    wipFiber.alternate.hooks &&
-    wipFiber.alternate.hooks[hookIndex]
+  const oldHook = wipFiber?.alternate?.hooks?.[hookIndex!]
+
   // 如果我们有一个 old hook，我们将状态从 old hook 复制到 new hook，如果我们没有，我们初始化状态。
   const hook = {
     state: oldHook ? oldHook.state : initial,
@@ -246,13 +251,13 @@ function useState(initial) {
     hook.state = action(hook.state)
   })
 
-  const setState = (action) => {
+  const setState = (action: any) => {
     // 我们将该操作推送到我们添加到 hook 的队列中。
     hook.queue.push(action)
     // 然后我们做一些类似于我们在 render 函数中所做的事情，设置一个新的正在进行的工作根作为下一个工作单元，这样工作循环就可以开始一个新的渲染阶段。
     wipRoot = {
-      dom: currentRoot.dom,
-      props: currentRoot.props,
+      dom: currentRoot!.dom,
+      props: currentRoot!.props,
       alternate: currentRoot,
     }
     nextUnitOfWork = wipRoot
@@ -260,13 +265,13 @@ function useState(initial) {
   }
 
   // 然后我们将 new hook 添加到 fiber 中，将 hook index 加一，
-  wipFiber.hooks.push(hook)
-  hookIndex++
+  wipFiber!.hooks.push(hook)
+  hookIndex!++
   // 然后返回状态。useState 还应该返回一个函数来更新状态，因此我们定义了一个接收动作的 setState 函数
   return [hook.state, setState]
 }
 
-function updateHostComponent(fiber) {
+function updateHostComponent(fiber: Fiber) {
   // 建一个新节点并将其附加到 DOM。
   if (!fiber.dom) {
     fiber.dom = createDom(fiber)
@@ -275,11 +280,11 @@ function updateHostComponent(fiber) {
 }
 
 // 创建 new fiber
-function reconcileChildren(wipFiber, elements) {
+function reconcileChildren(wipFiber: Fiber, elements: any[]) {
   let index = 0
   // old fiber
   let oldFiber = wipFiber.alternate && wipFiber.alternate.child
-  let prevSibling = null
+  let prevSibling: Fiber | null = null
 
   // 同时遍历 old fiber ( wipFiber.alternate ) 的子节点和我们想要协调的元素数组。
   // 如果我们忽略同时遍历一个数组和一个链表所需的所有样板，那么我们只剩下 while 中最重要的内容： oldFiber 和 element 。
@@ -288,7 +293,7 @@ function reconcileChildren(wipFiber, elements) {
   // 我们在 fiber.dom 属性中跟踪 DOM 节点。
   while (index < elements.length || oldFiber != null) {
     const element = elements[index]
-    let newFiber = null
+    let newFiber: Fiber | null = null
 
     const sameType = oldFiber && element && element.type == oldFiber.type
 
@@ -334,7 +339,7 @@ function reconcileChildren(wipFiber, elements) {
     if (index === 0) {
       wipFiber.child = newFiber
     } else if (element) {
-      prevSibling.sibling = newFiber
+      prevSibling!.sibling = newFiber
     }
 
     prevSibling = newFiber
@@ -374,7 +379,7 @@ function Counter() {
 const elementState = Didact.createElement(Counter, null)
 
 /** @jsx Didact.createElement */
-function App(props) {
+function App(props: { name: string }) {
   return Didact.createElement('h1', null, 'Hi ', props.name)
 }
 const elementApp = Didact.createElement(App, {
