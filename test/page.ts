@@ -1,4 +1,4 @@
-import * as Didact from './index'
+import * as Didact from '../index'
 
 /** @jsx Didact.createElement */
 function Counter() {
