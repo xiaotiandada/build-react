@@ -70,11 +70,12 @@ const elementApp = Didact.createElement(App, {
   name: 'foo',
 })
 
-/** @jsx Didact.createElement */
 // 创建一个对象，type props
+/** @jsx Didact.createElement */
 const element = Didact.createElement(
   'div',
   {
+    className: 'w-full',
     id: 'foo',
     style: 'background: salmon',
   },

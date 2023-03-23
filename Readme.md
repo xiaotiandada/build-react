@@ -1,5 +1,5 @@
-### Build react
+## Build your own React
 
-- https://github.com/facebook/react/
-- https://github1s.com/facebook/react/blob/HEAD/packages/react/src/React.js
-- https://pomb.us/build-your-own-react/
+### Notes
+
+- https://command-cv.vercel.app/react

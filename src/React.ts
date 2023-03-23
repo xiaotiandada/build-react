@@ -38,7 +38,11 @@ function updateDom(
     .forEach((name: string) => {
       // dom[name] = ''
       if (dom instanceof HTMLElement) {
-        dom.setAttribute(name, '')
+        if (name === 'className') {
+          dom.removeAttribute('class')
+        } else {
+          dom.removeAttribute(name)
+        }
       } else {
         // Text
         ;(dom as any)[name] = ''
@@ -52,7 +56,11 @@ function updateDom(
     .forEach((name: string) => {
       // dom[name] = nextProps[name]
       if (dom instanceof HTMLElement) {
-        dom.setAttribute(name, nextProps[name])
+        if (name === 'className') {
+          dom.setAttribute('class', nextProps[name])
+        } else {
+          dom.setAttribute(name, nextProps[name])
+        }
       } else {
         // Text
         ;(dom as any)[name] = nextProps[name]
