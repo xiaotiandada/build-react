@@ -1,4 +1,4 @@
-import { Fiber, Props } from '../index.d'
+import { Fiber, FunctionComponent, Props } from '../index.d'
 import { isEvent, isProperty, isNew, isGone } from '../utils'
 import { createElement } from './ReactElement'
 
@@ -16,12 +16,16 @@ function createDom(fiber: Fiber) {
 }
 
 // 我们将旧 fiber 的 props 与新 fiber 的 props 进行比较，移除消失的 props，并设置新的或更改的 props。
-function updateDom(dom: HTMLElement, prevProps: Props, nextProps: Props) {
+function updateDom(
+  dom: HTMLElement | Text,
+  prevProps: Props,
+  nextProps: Props
+) {
   //Remove old or changed event listeners
   Object.keys(prevProps)
     .filter(isEvent)
     .filter((key) => !(key in nextProps) || isNew(prevProps, nextProps)(key))
-    .forEach((name) => {
+    .forEach((name: string) => {
       const eventType = name.toLowerCase().substring(2)
 
       dom.removeEventListener(eventType, prevProps[name])
@@ -31,23 +35,35 @@ function updateDom(dom: HTMLElement, prevProps: Props, nextProps: Props) {
   Object.keys(prevProps)
     .filter(isProperty)
     .filter(isGone(prevProps, nextProps))
-    .forEach((name) => {
-      dom[name] = ''
+    .forEach((name: string) => {
+      // dom[name] = ''
+      if (dom instanceof HTMLElement) {
+        dom.setAttribute(name, '')
+      } else {
+        // Text
+        ;(dom as any)[name] = ''
+      }
     })
 
   // Set new or changed properties
   Object.keys(nextProps)
     .filter(isProperty)
     .filter(isNew(prevProps, nextProps))
-    .forEach((name) => {
-      dom[name] = nextProps[name]
+    .forEach((name: string) => {
+      // dom[name] = nextProps[name]
+      if (dom instanceof HTMLElement) {
+        dom.setAttribute(name, nextProps[name])
+      } else {
+        // Text
+        ;(dom as any)[name] = nextProps[name]
+      }
     })
 
   // Add event listeners
   Object.keys(nextProps)
     .filter(isEvent)
     // .filter(isNew(prevProps, nextProps))
-    .forEach((name) => {
+    .forEach((name: string) => {
       const eventType = name.toLowerCase().substring(2)
 
       dom.addEventListener(eventType, nextProps[name])
@@ -56,8 +72,8 @@ function updateDom(dom: HTMLElement, prevProps: Props, nextProps: Props) {
 
 function commitRoot() {
   // 当我们将更改提交到 DOM 时，我们还使用该数组中的 fiber。
-  deletions.forEach(commitWork)
-  commitWork(wipRoot.child)
+  ;(deletions || []).forEach(commitWork)
+  commitWork(wipRoot!.child)
   // 在完成提交后保存对“我们提交给 DOM 的最后一个 fiber tree ”的引用。我们称它为 currentRoot 。
   currentRoot = wipRoot
   wipRoot = null
@@ -65,7 +81,7 @@ function commitRoot() {
 
 // 找 child 然后找 sibling，最后找到 parent
 // 递归地将所有节点附加到 dom。
-function commitWork(fiber: Fiber) {
+function commitWork(fiber?: Fiber | null) {
   console.log('commitWork', fiber)
   if (!fiber) {
     return
@@ -73,8 +89,8 @@ function commitWork(fiber: Fiber) {
 
   // 要找到 DOM 节点的父节点，我们需要沿着fiber tree 向上移动，直到找到带有 DOM 节点的 fiber。
   let domParentFiber = fiber.parent
-  while (!domParentFiber.dom) {
-    domParentFiber = domParentFiber.parent
+  while (!domParentFiber?.dom) {
+    domParentFiber = domParentFiber?.parent
   }
   const domParent = domParentFiber.dom
   // 如果 fiber 有一个 PLACEMENT effect 标签，我们和以前一样，将 DOM 节点附加到父 fiber 的节点。
@@ -82,7 +98,7 @@ function commitWork(fiber: Fiber) {
     domParent.appendChild(fiber.dom)
   } else if (fiber.effectTag === 'UPDATE' && fiber.dom != null) {
     // 如果它是一个 UPDATE ，我们需要用改变的属性更新现有的 DOM 节点。
-    updateDom(fiber.dom, fiber.alternate.props, fiber.props)
+    updateDom(fiber.dom, fiber.alternate?.props || {}, fiber.props)
   } else if (fiber.effectTag === 'DELETION') {
     commitDeletion(fiber, domParent)
   }
@@ -91,13 +107,15 @@ function commitWork(fiber: Fiber) {
   commitWork(fiber.sibling)
 }
 
-function commitDeletion(fiber: Fiber, domParent: HTMLElement) {
+function commitDeletion(fiber: Fiber, domParent: HTMLElement | Text) {
   if (fiber.dom) {
     // 如果是 DELETION ，我们做相反的事情，删除孩子。
     domParent.removeChild(fiber.dom)
   } else {
     // 在删除节点时，我们还需要继续前进，直到找到具有 DOM 节点的子节点。
-    commitDeletion(fiber.child, domParent)
+    if (fiber.child) {
+      commitDeletion(fiber.child, domParent)
+    }
   }
 }
 
@@ -170,7 +188,7 @@ function performUnitOfWork(fiber: Fiber): Fiber | null {
   }
 
   // 然后是兄弟姐妹，然后是叔叔，依此类推。
-  let nextFiber = fiber
+  let nextFiber: Fiber | undefined = fiber
   while (nextFiber) {
     if (nextFiber.sibling) {
       return nextFiber.sibling
@@ -193,7 +211,7 @@ function updateFunctionComponent(fiber: Fiber) {
   wipFiber.hooks = []
   // get the children.
   // fiber.type 是函数，当我们运行它时，它返回 element
-  const children = [fiber.type(fiber.props)]
+  const children = [(fiber.type as FunctionComponent)(fiber.props)]
   // 以同样的方式调用 reconcileChildren
   reconcileChildren(fiber, children)
 }
@@ -203,7 +221,10 @@ function useState(initial: any): [any, (action: any) => void] {
   const oldHook = wipFiber?.alternate?.hooks?.[hookIndex!]
 
   // 如果我们有一个 old hook，我们将状态从 old hook 复制到 new hook，如果我们没有，我们初始化状态。
-  const hook = {
+  const hook: {
+    state: any
+    queue: any[]
+  } = {
     state: oldHook ? oldHook.state : initial,
     queue: [],
   }
@@ -211,7 +232,7 @@ function useState(initial: any): [any, (action: any) => void] {
   // 我们在下次渲染组件时这样做，我们从 old hook 队列中获取所有动作
   const actions = oldHook ? oldHook.queue : []
   // 然后将它们一个一个地应用到 new hook 状态，所以当我们返回状态时它被更新了。
-  actions.forEach((action) => {
+  actions.forEach((action: (value: any) => any) => {
     hook.state = action(hook.state)
   })
 
@@ -229,7 +250,9 @@ function useState(initial: any): [any, (action: any) => void] {
   }
 
   // 然后我们将 new hook 添加到 fiber 中，将 hook index 加一，
-  wipFiber!.hooks.push(hook)
+  if (wipFiber?.hooks) {
+    wipFiber.hooks.push(hook)
+  }
   hookIndex!++
   // 然后返回状态。useState 还应该返回一个函数来更新状态，因此我们定义了一个接收动作的 setState 函数
   return [hook.state, setState]
@@ -247,7 +270,7 @@ function updateHostComponent(fiber: Fiber) {
 function reconcileChildren(wipFiber: Fiber, elements: any[]) {
   let index = 0
   // old fiber
-  let oldFiber = wipFiber.alternate && wipFiber.alternate.child
+  let oldFiber = wipFiber.alternate?.child
   let prevSibling: Fiber | null = null
 
   // 同时遍历 old fiber ( wipFiber.alternate ) 的子节点和我们想要协调的元素数组。
@@ -259,16 +282,16 @@ function reconcileChildren(wipFiber: Fiber, elements: any[]) {
     const element = elements[index]
     let newFiber: Fiber | null = null
 
-    const sameType = oldFiber && element && element.type == oldFiber.type
+    const sameType = oldFiber && element?.type == oldFiber.type
 
     // 如果旧的 fiber 和新的元素有相同的类型，我们可以保留 DOM 节点并用新的 props 更新它
     if (sameType) {
       // 当旧的 fiber 和元素具有相同的类型时，我们创建一个新的 fiber，保留旧 fiber 的 DOM 节点和元素的 props
       // 我们还向纤程添加了一个新属性： effectTag 。
       newFiber = {
-        type: oldFiber.type,
+        type: oldFiber?.type,
         props: element.props,
-        dom: oldFiber.dom,
+        dom: oldFiber?.dom,
         parent: wipFiber,
         alternate: oldFiber,
         effectTag: 'UPDATE',
@@ -291,7 +314,7 @@ function reconcileChildren(wipFiber: Fiber, elements: any[]) {
     if (oldFiber && !sameType) {
       // 对于我们需要删除节点的情况，我们没有新的 fiber，所以我们将 effect 标签添加到旧的 fiber。
       oldFiber.effectTag = 'DELETION'
-      deletions.push(oldFiber)
+      deletions?.push(oldFiber)
     }
 
     if (oldFiber) {
@@ -301,7 +324,7 @@ function reconcileChildren(wipFiber: Fiber, elements: any[]) {
     // TODO compare oldFiber to element
     // 将它添加到 fiber 树中，将其设置为子节点或兄弟节点，具体取决于它是否是第一个子节点。
     if (index === 0) {
-      wipFiber.child = newFiber
+      wipFiber!.child = newFiber
     } else if (element) {
       prevSibling!.sibling = newFiber
     }

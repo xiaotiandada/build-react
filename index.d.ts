@@ -5,13 +5,13 @@ export type Props = {
 export type FunctionComponent = (props: Props) => any
 
 export type Fiber = {
-  type: string | FunctionComponent
+  type?: string | FunctionComponent
   props: Props
-  dom?: HTMLElement
+  dom?: HTMLElement | Text | null
   parent?: Fiber
-  child?: Fiber
-  sibling?: Fiber
-  alternate?: Fiber
+  child?: Fiber | null
+  sibling?: Fiber | null
+  alternate?: Fiber | null
   effectTag?: string
   hooks?: any[]
 }
