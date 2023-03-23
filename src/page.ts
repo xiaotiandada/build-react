@@ -91,7 +91,7 @@ const element = Didact.createElement(
   elementState1
 )
 
-const container = document.getElementById('root')
+const container = document.getElementById('_root')
 if (container) {
   Didact.render(element, container)
 } else {
