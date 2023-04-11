@@ -342,4 +342,16 @@ function reconcileChildren(wipFiber: Fiber, elements: any[]) {
   }
 }
 
+export function isValidContainer(node: any): boolean {
+  return !!node
+}
+
+function createRoot(container: Element | DocumentFragment) {
+  if (!isValidContainer(container)) {
+    throw new Error('createRoot(...): Target container is not a DOM element.');
+  }
+
+  return container
+}
+
 export { createElement, render, useState }
