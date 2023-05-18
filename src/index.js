@@ -5,11 +5,11 @@
 let nextUnitOfWork
 // work in progress root，由于线程空闲时才渲染DOM，所以会渲染不完整的UI，为了防止这种情况需要从此处删除更改DOM的部分
 // 所以需要跟踪fiber tree的根节点
-// 当没有下一个work unit，我们才将整个fiber tree插入DOM
+// 当没有下一个 work unit，我们才将整个fiber tree插入DOM
 let wipRoot
-// 为了实现reconciliation，需要比较render接收的element和DOM对应的最新fiber tree。该变量保存插入DOM的最新fiber tree
+// 为了实现 reconciliation，需要比较render接收的element和DOM对应的最新fiber tree。该变量保存插入DOM的最新fiber tree
 let currentRoot
-// 由于将fiber tree插入DOM中是我们是从wipRoot开始，而其没有old fibers，所以需要数组保存我们需要删除的nodes
+// 由于将 fiber tree插入DOM中是我们是从wipRoot开始，而其没有old fibers，所以需要数组保存我们需要删除的nodes
 let deletions
 let wipFiber
 let hookIndex
@@ -104,42 +104,54 @@ const render = (element, container) => {
 
 // 将nodes插入DOM
 const commitRoot = () => {
+  // 删除操作
   deletions.forEach(commitWork)
+  // commit work
   commitWork(wipRoot.child)
   currentRoot = wipRoot
   wipRoot = null
 }
+
 const commitWork = (fiber) => {
   if (!fiber) return
 
-  // 函数组件fiber没有dom node，需要递归找到最近的祖先node
+  // 函数组件 fiber 没有 dom node，需要递归找到最近的祖先 node
   let domParentFiber = fiber.parent
   while (!domParentFiber.dom) {
     domParentFiber = domParentFiber.parent
   }
   const domParent = domParentFiber.dom
 
+  // PLACEMENT: 插入新的node
   if (fiber.effectTag === 'PLACEMENT' && fiber.dom) {
     domParent.appendChild(fiber.dom)
   } else if (fiber.effectTag === 'DELETION') {
+    // DELETION: 删除旧的node
     commitDeletion(fiber.child, domParent)
   } else if (fiber.effectTag === 'UPDATE' && fiber.dom) {
+    // UPDATE: 更新node
     updateDOM(fiber.dom, fiber.alternate.props, fiber.props)
   }
 
+  // commit work Child and sibling
   commitWork(fiber.child)
   commitWork(fiber.sibling)
 }
 
 const workLoop = (deadline) => {
   let shouldYield = false
+  // step 2
   while (nextUnitOfWork && !shouldYield) {
     nextUnitOfWork = performUnitOfWork(nextUnitOfWork)
+    // 有空闲时间
     shouldYield = deadline.timeRemaining() < 1
   }
+  // step 1
   if (!nextUnitOfWork && wipRoot) {
     commitRoot()
   }
+
+  // loop
   requestIdleCallback(workLoop)
 }
 
@@ -163,20 +175,25 @@ const createDOM = (fiber) => {
  */
 const performUnitOfWork = (fiber) => {
   const isFunctionComponents = fiber.type instanceof Function
+  // 函数组件
   if (isFunctionComponents) {
     updateFunctionComponent(fiber)
   } else {
+    // 普通组件
     updateHostComponent(fiber)
   }
 
+  // 如果有子元素
   if (fiber.child) {
     return fiber.child
   }
+  // 如果没有子元素，就找兄弟元素
   let nextFiber = fiber
   while (nextFiber) {
     if (nextFiber.sibling) {
       return nextFiber.sibling
     }
+    // 如果没有兄弟元素，就找父元素的兄弟元素
     nextFiber = nextFiber.parent
   }
 }
@@ -186,15 +203,16 @@ const updateFunctionComponent = (fiber) => {
   hookIndex = 0
   wipFiber.hooks = []
   const children = [fiber.type(fiber.props)]
-  reconciliationChildren(fiber, children)
+  reconcileChildren(fiber, children)
 }
 
+// 更新普通组件
 const updateHostComponent = (fiber) => {
   if (!fiber.dom) {
     fiber.dom = createDOM(fiber)
   }
   const elements = fiber.props.children
-  reconciliationChildren(fiber, elements)
+  reconcileChildren(fiber, elements)
 }
 
 function useState(initial) {
@@ -208,7 +226,9 @@ function useState(initial) {
   }
 
   const actions = oldHook ? oldHook.queue : []
-  actions.forEach((action) => (hook.state = action(hook.state)))
+  actions.forEach(action => {
+    hook.state = action(hook.state)
+  })
 
   const setState = (action) => {
     hook.queue.push(action)
@@ -233,7 +253,7 @@ function useState(initial) {
  * 2. 如果type不同，渲染新DOM
  * 3. 如果type不同同时存在旧fiber，需要删除旧node
  */
-const reconciliationChildren = (wipFiber, elements) => {
+const reconcileChildren = (wipFiber, elements) => {
   let index = 0
   let prevSibling
   let oldFiber = wipFiber.alternate && wipFiber.alternate.child
@@ -244,10 +264,14 @@ const reconciliationChildren = (wipFiber, elements) => {
 
     const sameType = oldFiber && element && oldFiber.type === element.type
 
+    // 如果 type 相同，更新 props
     if (sameType) {
+
+      console.log('element', element)
+
       newFiber = {
         type: oldFiber.type,
-        props: oldFiber.props,
+        props: element.props,
         dom: oldFiber.dom,
         parent: wipFiber,
         alternate: oldFiber,
@@ -305,6 +329,10 @@ const content = (
  */
 function Counter() {
   const [state, setState] = Didact.useState(1)
+
+  console.log('state', state)
+  console.log('setState', setState)
+
   const onClick = () => {
     console.log('click', state)
     setState((c) => c + 1)
